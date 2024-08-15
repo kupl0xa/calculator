@@ -11,10 +11,6 @@ DOCKER_IMAGE_TAG=latest
 # COMMANDS  #
 #############
 
-download:
-	@echo Download go.mod dependencies
-	@go mod download
-
 build:
 	@echo "Building the project"
 	@go build -o $(BINARY_NAME) cmd/calculator/main.go
