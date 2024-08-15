@@ -1,0 +1,422 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>calculator: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/kupl0xa/calculator/cmd/calculator/main.go (66.7%)</option>
+				
+				<option value="file1">github.com/kupl0xa/calculator/internal/handlers/task_handlers.go (80.0%)</option>
+				
+				<option value="file2">github.com/kupl0xa/calculator/internal/middleware/middleware.go (100.0%)</option>
+				
+				<option value="file3">github.com/kupl0xa/calculator/internal/router/router.go (100.0%)</option>
+				
+				<option value="file4">github.com/kupl0xa/calculator/internal/services/task_service.go (100.0%)</option>
+				
+				<option value="file5">github.com/kupl0xa/calculator/internal/tracer/tracer.go (62.5%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "context"
+        "log/slog"
+        "net/http"
+        "os"
+        "os/signal"
+        "time"
+
+        "github.com/kupl0xa/calculator/internal/router"
+        "github.com/kupl0xa/calculator/internal/tracer"
+)
+
+func main() <span class="cov8" title="1">{
+        tp, err := tracer.InitTracer()
+        if err != nil </span><span class="cov0" title="0">{
+                slog.Error("Failed to iintialize tracer", "error", err.Error())
+                os.Exit(1)
+        }</span>
+        <span class="cov8" title="1">defer tracer.ShutdownTracer(tp)
+
+        r := router.NewRouter()
+
+        srv := &amp;http.Server{
+                Addr:         "0.0.0.0:8080",
+                WriteTimeout: time.Second * 15,
+                ReadTimeout:  time.Second * 15,
+                IdleTimeout:  time.Second * 60,
+                Handler:      r,
+        }
+
+        stop := make(chan os.Signal, 1)
+        signal.Notify(stop, os.Interrupt)
+
+        go func() </span><span class="cov8" title="1">{
+                slog.Info("Starting server")
+                if err := srv.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed </span><span class="cov0" title="0">{
+                        slog.Error("Can't start server", "error", err.Error())
+                        os.Exit(1)
+                }</span>
+
+        }()
+
+        <span class="cov8" title="1">&lt;-stop
+        ctx, cancel := context.WithTimeout(context.Background(), 5)
+        defer cancel()
+        if err := srv.Shutdown(ctx); err != nil </span><span class="cov0" title="0">{
+                slog.Error(err.Error())
+        }</span>
+        <span class="cov0" title="0">slog.Info("Shutting down")
+        os.Exit(0)</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package handlers
+
+import (
+        "encoding/json"
+        "log/slog"
+        "net/http"
+        "strconv"
+
+        "github.com/gorilla/mux"
+        "github.com/kupl0xa/calculator/internal/models"
+        "github.com/kupl0xa/calculator/internal/services"
+        "github.com/prometheus/client_golang/prometheus"
+)
+
+var (
+        taskCounter = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "task_requests_total", Help: "Total number of task requests"}, []string{"endpoint"})
+)
+
+func init() <span class="cov8" title="1">{
+        prometheus.MustRegister(taskCounter)
+}</span>
+
+type TaskHandler struct {
+        Service *services.TaskService
+}
+
+func NewTaskHandler(service *services.TaskService) *TaskHandler <span class="cov8" title="1">{
+        return &amp;TaskHandler{Service: service}
+}</span>
+
+func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        taskCounter.WithLabelValues("create").Inc()
+
+        var input struct {
+                X        int    `json:"x"`
+                Y        int    `json:"y"`
+                Operator string `json:"operator"`
+        }
+        if err := json.NewDecoder(r.Body).Decode(&amp;input); err != nil </span><span class="cov8" title="1">{
+                slog.Error("CreateTask", "error", err.Error())
+                http.Error(w, "Incorrect data", http.StatusBadRequest)
+                return
+        }</span>
+        <span class="cov8" title="1">switch input.Operator </span>{
+        case "/":<span class="cov8" title="1">
+                if input.Y == 0 </span><span class="cov8" title="1">{
+                        slog.Error("CreateTask", "error", "Division by zero")
+                        http.Error(w, "Division by zero is not supported", http.StatusBadRequest)
+                        return
+                }</span>
+        case "+", "-", "*":<span class="cov8" title="1"></span>
+        default:<span class="cov8" title="1">
+                slog.Error("CreateTask", "Wrong operator", input.Operator)
+                http.Error(w, "Operator should be +,-,*,/", http.StatusBadRequest)
+                return</span>
+        }
+        <span class="cov8" title="1">id := h.Service.CreateTask(input.X, input.Y, input.Operator)
+        go h.Service.ExecuteTask(id)
+        w.WriteHeader(http.StatusCreated)
+        if err := json.NewEncoder(w).Encode(map[string]int{"id": id}); err != nil </span><span class="cov0" title="0">{
+                slog.Error("CreateTask", "error", err.Error())
+                http.Error(w, "Something went wrong", http.StatusInternalServerError)
+                return
+        }</span>
+}
+
+func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        taskCounter.WithLabelValues("list").Inc()
+
+        tasks := h.Service.ListTasks()
+        if err := json.NewEncoder(w).Encode(tasks); err != nil </span><span class="cov0" title="0">{
+                slog.Error("ListTask", "error", err.Error())
+                http.Error(w, "Something went wrong", http.StatusInternalServerError)
+                return
+        }</span>
+}
+
+func (h *TaskHandler) GetTaskResult(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        taskCounter.WithLabelValues("get_result").Inc()
+
+        vars := mux.Vars(r)
+        id, err := strconv.Atoi(vars["id"])
+        if err != nil </span><span class="cov8" title="1">{
+                slog.Error(err.Error())
+                http.Error(w, "Invalid task ID", http.StatusBadRequest)
+                return
+        }</span>
+        <span class="cov8" title="1">result, err := h.Service.GetTaskResult(id)
+        if err != nil </span><span class="cov8" title="1">{
+                slog.Error(err.Error(), "id", id)
+                http.Error(w, err.Error(), http.StatusNotFound)
+                return
+        }</span>
+        <span class="cov8" title="1">if err := json.NewEncoder(w).Encode(models.TaskResultResponse{ID: id, Result: result}); err != nil </span><span class="cov0" title="0">{
+                slog.Error("GetTaskResult", "error", err.Error())
+                http.Error(w, "Something went wrong", http.StatusInternalServerError)
+                return
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package middleware
+
+import (
+        "log"
+        "net/http"
+        "time"
+)
+
+func LoggingMiddleware(next http.Handler) http.Handler <span class="cov8" title="1">{
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov8" title="1">{
+                start := time.Now()
+                next.ServeHTTP(w, r)
+                log.Printf("%s %s %s", r.Method, r.RequestURI, time.Since(start))
+        }</span>)
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package router
+
+import (
+        "github.com/gorilla/mux"
+        "github.com/kupl0xa/calculator/internal/handlers"
+        "github.com/kupl0xa/calculator/internal/middleware"
+        "github.com/kupl0xa/calculator/internal/services"
+        "go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
+
+        "github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+func NewRouter() *mux.Router <span class="cov8" title="1">{
+        r := mux.NewRouter()
+        taskService := services.NewTaskService()
+        taskHandler := handlers.NewTaskHandler(taskService)
+
+        r.Use(otelmux.Middleware("calculator-app"))
+        r.Use(middleware.LoggingMiddleware)
+        r.Handle("/metrics", promhttp.Handler())
+        r.HandleFunc("/tasks", taskHandler.CreateTask).Methods("POST")
+        r.HandleFunc("/tasks", taskHandler.ListTasks).Methods("GET")
+        r.HandleFunc("/tasks/{id}", taskHandler.GetTaskResult).Methods("GET")
+
+        return r
+}</span>
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package services
+
+import (
+        "sync"
+
+        "github.com/kupl0xa/calculator/internal/models"
+)
+
+type TaskService struct {
+        tasks  map[int]*models.Task
+        mu     sync.RWMutex
+        nextID int
+}
+
+func NewTaskService() *TaskService <span class="cov8" title="1">{
+        return &amp;TaskService{
+                tasks:  make(map[int]*models.Task),
+                nextID: 1,
+        }
+}</span>
+
+func (s *TaskService) CreateTask(x, y int, operator string) int <span class="cov8" title="1">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+        task := &amp;models.Task{
+                X:        x,
+                Y:        y,
+                Operator: operator,
+                Status:   "Pending",
+        }
+        s.tasks[s.nextID] = task
+        s.nextID++
+        return s.nextID - 1
+}</span>
+
+func (s *TaskService) ListTasks() []models.TaskStatusResponse <span class="cov8" title="1">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        tasks := make([]models.TaskStatusResponse, 0, len(s.tasks))
+        for id, task := range s.tasks </span><span class="cov8" title="1">{
+                taskStatus := models.TaskStatusResponse{
+                        ID:     id,
+                        Status: task.Status,
+                }
+                tasks = append(tasks, taskStatus)
+        }</span>
+        <span class="cov8" title="1">return tasks</span>
+}
+
+func (s *TaskService) GetTaskResult(id int) (int, error) <span class="cov8" title="1">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        task, exists := s.tasks[id]
+        if !exists </span><span class="cov8" title="1">{
+                return 0, models.ErrNotFound
+        }</span>
+        <span class="cov8" title="1">return task.Result, nil</span>
+}
+
+func (s *TaskService) ExecuteTask(id int) <span class="cov8" title="1">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+        task := s.tasks[id]
+
+        var result int
+        switch task.Operator </span>{
+        case "+":<span class="cov8" title="1">
+                result = task.X + task.Y</span>
+        case "-":<span class="cov8" title="1">
+                result = task.X - task.Y</span>
+        case "*":<span class="cov8" title="1">
+                result = task.X * task.Y</span>
+        case "/":<span class="cov8" title="1">
+                result = task.X / task.Y</span>
+        }
+        <span class="cov8" title="1">task.Status = "Completed"
+        task.Result = result</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package tracer
+
+import (
+        "context"
+        "log"
+
+        "go.opentelemetry.io/otel"
+        "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+        "go.opentelemetry.io/otel/sdk/resource"
+        "go.opentelemetry.io/otel/sdk/trace"
+        semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+)
+
+func InitTracer() (*trace.TracerProvider, error) <span class="cov8" title="1">{
+        exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">tp := trace.NewTracerProvider(trace.WithBatcher(exporter), trace.WithResource(resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceNameKey.String("calculator-app"))))
+        otel.SetTracerProvider(tp)
+        return tp, nil</span>
+}
+
+func ShutdownTracer(tp *trace.TracerProvider) <span class="cov0" title="0">{
+        if err := tp.Shutdown(context.Background()); err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Error shutting down tracer provider: %v", err)
+        }</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
